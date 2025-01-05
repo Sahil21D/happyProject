@@ -1,46 +1,35 @@
-[ApiController]
-[Route("api/[controller]")]
-public class ReferralTreeController : ControllerBase
+public class ReferralTreeService
 {
     private readonly ApplicationDbContext _context;
 
-    public ReferralTreeController(ApplicationDbContext context)
+    public ReferralTreeService(ApplicationDbContext context)
     {
         _context = context;
     }
 
-    [HttpGet("{username}")]
-    public async Task<IActionResult> GetTree(string username)
+    public async Task<BinaryTreeNodeDto> GetTreeAsync()
     {
-        // Find the referrer node by username.
-        var referrerNode = await _context.BinaryTreeNodes
-            .FirstOrDefaultAsync(n => n.UserId == _context.Users
-                .Where(u => u.Username == username)
-                .Select(u => u.Id)
-                .FirstOrDefault());
+        // Fetch the root node (where ParentId is null)
+        var rootNode = await _context.BinaryTreeNodes
+            .FirstOrDefaultAsync(node => node.ParentId == null);
 
-        if (referrerNode == null)
+        if (rootNode == null)
         {
-            return NotFound("Referrer not found.");
+            throw new Exception("No tree found.");
         }
 
-        // Build the tree representation.
-        var tree = BuildTree(referrerNode);
-
-        return Ok(tree);
+        // Recursively build the tree
+        return BuildTree(rootNode);
     }
 
-    private TreeNodeDto BuildTree(BinaryTreeNode node)
+    private BinaryTreeNodeDto BuildTree(BinaryTreeNode node)
     {
-        if (node == null)
-            return null;
+        if (node == null) return null;
 
-        var user = _context.Users.FirstOrDefault(u => u.Id == node.UserId);
-
-        // Recursive tree building.
-        return new TreeNodeDto
+        return new BinaryTreeNodeDto
         {
-            Username = user?.Username,
+            Id = node.Id,
+            UserId = node.UserId,
             LeftChild = BuildTree(GetNodeById(node.LeftChildId)),
             RightChild = BuildTree(GetNodeById(node.RightChildId))
         };
@@ -48,13 +37,17 @@ public class ReferralTreeController : ControllerBase
 
     private BinaryTreeNode GetNodeById(int? nodeId)
     {
+        if (nodeId == null) return null;
+
         return _context.BinaryTreeNodes.FirstOrDefault(n => n.Id == nodeId);
     }
 }
 
-public class TreeNodeDto
+// DTO for transferring tree data
+public class BinaryTreeNodeDto
 {
-    public string Username { get; set; }
-    public TreeNodeDto LeftChild { get; set; }
-    public TreeNodeDto RightChild { get; set; }
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public BinaryTreeNodeDto LeftChild { get; set; }
+    public BinaryTreeNodeDto RightChild { get; set; }
 }
